@@ -7,8 +7,15 @@
 segment pila stack
    resb 1024
 segment datos data
-    msjDeci     times 10  db  '0000002015'
-    msjHexa     times 10  db  '00000007DF'
+;    msjDeci     times 10  db  '0000002015'
+;    msjHexa     times 10  db  '00000007DF'
+    otraCadena times 10 db '0000000000'
+         db '$'
+    cadena      times 10 db '0'
+                db '$'
+    cadenaAux times 10 db '0000000000'
+         db '$'
+    
     char     resb   1
     hexa        db      'H'
     deci        db      'D'
@@ -19,8 +26,7 @@ segment datos data
     diez        dw  10
     cociente    db  0
     resto       db  0
-    cadena      times 10 db '0'
-                db '$'
+    
 ;para agregar el fin de string para imprimir por pantalla
 
 segment codigo code
@@ -29,7 +35,83 @@ segment codigo code
     mov     ds,ax
     mov     ax,pila     ;ss <-- dir del segmento de pila
     mov     ss,ax
+
+; aca comienza lectura por teclado .
+    mov  si,0       ;Reg SI apunta al ppio de la cadena
+nextChar:
+    ;Leo un caracter del teclado (queda en AL)
+    mov  ah,8h      
+    int  21h
+
+    cmp  al,13      ;presionó enter?
+    je   finIngreso
     
+    cmp  al,8       ;presionó back space?
+    jne  noBorra
+    
+    cmp  si,0       ;presionó backspace al inicio?
+    je   nextChar
+    dec   si
+    mov  byte[otraCadena+si],'0'    ;borro caracter ingresado anteriormente
+    
+
+    ;Imprimo backspace (vuelve para atras el cursor)
+    mov  dl,al
+    mov  ah,2
+    int  21h    
+
+    ;Imprimo un espacio en blanco para q borre el caracter anterior
+    mov  dl,32
+    mov  ah,2
+    int  21h    
+
+    ;Imprimo de nuevo el backspace para q el cursor quede en la posicion del caracter borrado
+    mov  dl,8
+    mov  ah,2
+    int  21h    
+
+    jmp  nextChar
+
+noBorra:    
+    ;Copio en la cadena el caracter ingresado
+    mov  [otraCadena+si],al
+    ;Imprimo en pantalla el caracter ingresado
+    mov  dl,al      ; dl <-- caracter ascii a imprimir
+    mov  ah,2
+    int  21h    
+    
+    ;Me fijo si es el fin de la cadena
+    inc  si
+    cmp  si,10
+    jl  nextChar
+
+finIngreso:
+    mov  byte[otraCadena+si],'$'
+;   sub  si,1
+    mov  di,10
+    sub  di,si
+    mov  si,0
+otroChar:
+    cmp  di,10
+    je   finOtroChar
+    mov  ah,byte[otraCadena+si]
+    mov  byte[cadenaAux+di],ah
+    add  di,1
+    add  si,1
+    jmp  otroChar
+finOtroChar:
+    mov  byte[cadenaAux+10],'$'
+    
+    mov  dx,msgMues        ;dx <-- offset de 'msgMues' dento del segmento de datos
+    mov  ah,9                   ; servicio 9 para int 21h -- Impmrimir msg en pantalla
+    int  21h
+
+    mov  dx,cadenaAux
+    mov  ah,9
+    int  21h
+
+
+ 
     lea     dx,[msgIng] ;dx <-- offset de 'msgIng' dento del segmento de datos
     mov     ah,9            ;servicio 9 para int 21h -- Impmrimir msg en pantalla
     int     21h
@@ -48,16 +130,17 @@ segment codigo code
 charToHexa:
     jmp     cnvNumHexa
     mov     di,0
+    
 otroHexa:
     cmp     di,9
     jg      cnvNumHexa
-    cmp     byte[msjHexa+di],'0'
+    cmp     byte[cadenaAux+di],'0'
     jb      error
-    cmp     byte[msjHexa+di],'9'
+    cmp     byte[cadenaAux+di],'9'
     jbe     otroHexa
-    cmp     byte[msjHexa+di],'A'
+    cmp     byte[cadenaAux+di],'A'
     jb      error
-    cmp     byte[msjHexa+di],'F'
+    cmp     byte[cadenaAux+di],'F'
     jbe     otroHexa
 sumDiHexa:
     add     di,10
@@ -72,9 +155,9 @@ charToDeci:
 otroDeci:
     cmp     di,9
     jg      cnvNumDec
-    cmp     byte[msjDeci+di],'0'
+    cmp     byte[cadenaAux+di],'0'
     jb      error
-    cmp     byte[msjDeci+di],'9'
+    cmp     byte[cadenaAux+di],'9'
     ja      error
     add     di,1
     jmp     otroDeci
@@ -87,7 +170,7 @@ otroCharHex:
     mov     si,9
     sub     si,di
     mov     ah,0
-    mov     al,byte[msjHexa+di]
+    mov     al,byte[cadenaAux+di]
     cmp     ax,57
     jbe     subDecHex
 ; no tendria que haber error antes de que llegue a esta parte.
@@ -122,7 +205,7 @@ otroCharDec:
     mov  si,9 
     sub  si,di
     mov  ah,0
-    mov  al,byte[msjDeci+di] ;cargo caracter
+    mov  al,byte[cadenaAux+di] ;cargo caracter
     sub  ax,48 ; convierto a binario
     
 otraMulDec:
