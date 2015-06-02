@@ -7,8 +7,8 @@
 segment pila stack
    resb 1024
 segment datos data
-    msjDeci    	dw		'00002015'
-	msjHexa		dw		'7DF'
+    msjDeci     times 10  db  '0000002015'
+    msjHexa     times 10  db  '00000007DF'
     char     resb   1
     hexa        db      'H'
     deci        db      'D'
@@ -38,7 +38,7 @@ segment codigo code
     int     21h
 ; me fijo que letra es la ingresada ;
     mov     [char],al   ;guardo en char el ascii del caracter ingresado ya que el servicio
-						;que se ejecuta a continuación altera 'al' copiando el ascii del signo $
+                        ;que se ejecuta a continuación altera 'al' copiando el ascii del signo $
     cmp     byte[char],'H'
     je      charToHexa
     cmp     byte[char],'D'
@@ -46,68 +46,100 @@ segment codigo code
     jmp     errorLetra
 
 charToHexa:
+    jmp     cnvNumHexa
     mov     di,0
 otroHexa:
-    cmp		di,9
-	jg	    cnvNumHexa
-	cmp     byte[msjHexa+di],'0'
-	jb      error
-	cmp     byte[msjHexa+di],'9'
-	jbe     otroHexa
-	cmp     byte[msjHexa+di],'A'
-	jb      error
-	cmp     byte[msjHexa+di],'F'
-	jbe     otroHexa
+    cmp     di,9
+    jg      cnvNumHexa
+    cmp     byte[msjHexa+di],'0'
+    jb      error
+    cmp     byte[msjHexa+di],'9'
+    jbe     otroHexa
+    cmp     byte[msjHexa+di],'A'
+    jb      error
+    cmp     byte[msjHexa+di],'F'
+    jbe     otroHexa
 sumDiHexa:
     add     di,10
-	jmp		otroHexa
+    jmp     otroHexa
 
 error:
     jmp     finPrograma
 
 charToDeci:
-	mov     di,0
+    jmp     cnvNumDec
+    mov     di,0
 otroDeci:
-	cmp		di,9
-	jg	    cnvNumDec
-	cmp     byte[msjDeci+di],'0'
-	jb      error
-	cmp     byte[msjDeci+di],'9'
-	ja      error
-	add		di,1
-    jmp		otroDeci
+    cmp     di,9
+    jg      cnvNumDec
+    cmp     byte[msjDeci+di],'0'
+    jb      error
+    cmp     byte[msjDeci+di],'9'
+    ja      error
+    add     di,1
+    jmp     otroDeci
 
 cnvNumHexa:
-    mov		di,0
+    mov     di,0
+otroCharHex:
+    cmp     di,10
+    je      finCnvHex
+    mov     si,9
+    sub     si,di
+    mov     ah,0
+    mov     al,byte[msjHexa+di]
+    cmp     ax,57
+    jbe     subDecHex
+; no tendria que haber error antes de que llegue a esta parte.
+    sub     ax,55
+    jmp     otraMulHex
+subDecHex:
+    sub     ax,48
+    jmp     otraMulHex
+subCharHex:
+   
+otraMulHex:
+    cmp  si,0
+    je   finMulHex
+    mul  word[dieciseis]
+    sub  si,1
+    jmp  otraMulHex
+finMulHex:
+    add  di,1
+    add  [num],ax
+    jmp  otroCharHex
+finCnvHex:
+    jmp  binToDec   
 
-	
+    
 cnvNumDec:
 ; para poder pasar de caracter a binario tengo que tomar un caracter y restarle 48, luego
 ; tengo que multiplicar ese binario por la posicion que ocupa en la cadena.
-	mov  di,0 ; pongo direccionamiento en 0.
-otroCharDec:	
-	cmp  di,9
-	je   finCnvDec
-	mov  si,9 
-	sub  si,di
-	mov  ax,byte[msjDeci+di] ;cargo caracter
-	sub  ax,48 ; convierto a binario
+    mov  di,0 ; pongo direccionamiento en 0.
+otroCharDec:    
+    cmp  di,10
+    je   finCnvDec
+    mov  si,9 
+    sub  si,di
+    mov  ah,0
+    mov  al,byte[msjDeci+di] ;cargo caracter
+    sub  ax,48 ; convierto a binario
     
 otraMulDec:
-	cmp  si,0
-	je   finMulDec
-	mul  10
-	sub  si,1
-	jmp  otraMulDec
+    cmp  si,0
+    je   finMulDec
+    mul  word[diez]
+    sub  si,1
+    jmp  otraMulDec
 finMulDec:
-	add  di,1
-	add  [numero],ax
-	jmp  otroCharDec
+    add  di,1
+    add  [num],ax
+    jmp  otroCharDec
 finCnvDec:
-	jmp	 binToHexa
+    jmp  binToHexa
 
 ; a partir de aqui se hacen las conversiones de binario a su correspondiente
-; configuracion para imprimir en pantalla.	
+; configuracion para imprimir en pantalla.  
  
 binToDec:
     mov     dx,0       ;pongo en 0 dx para la dupla dx:ax
@@ -146,7 +178,7 @@ strNumHexa:
     jl      finDivHexa      ;THEN  fin division
     mov     dx,0        ;pongo en 0 DX para la dupla DX:AX
     jmp     otraDivHexa
-	
+    
 finDivHexa:
     cmp     ax,10
     jl      esNumHexa
@@ -170,6 +202,6 @@ errorLetra:
     mov dl,[char]       ; dl <- caracter ascii a imprimir
     mov ah,2            ; servicio 2 para int 21h -- Imprime un caracter, que esta en 'dl'
     int 21h
-	finPrograma:
+    finPrograma:
     mov     ax,4c00h   ;retorno al DOS
     int     21h
