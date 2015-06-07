@@ -7,26 +7,25 @@
 segment pila stack
    resb 1024
 segment datos data
-;    msjDeci     times 10  db  '0000002015'
-;    msjHexa     times 10  db  '00000007DF'
-    otraCadena times 5 db '0000000000'
-         db '$'
-    cadena      times 5 db '0'
-                db '$'
-    cadenaAux times 5 db '0000000000'
-         db '$'
+    otraCadena times 5 db '0'
+        db '$'
+    cadena     times 5 db '0'
+        db '$'
+    cadenaAux  times 5 db '0'
+        db '$'
 
-    char     resb   1
-    hexa        db      'H'
-    deci        db      'D'
-    msgIng      db      10,13,"H - Hexa to Decimal. D - Decimal to Hexa: ",10,13,'$'
-    msgMues     db      10,13,"Ud ingreso: $"
-    num         dw  0
-    dieciseis   dw  16
-    diez        dw  10
-    cociente    db  0
-    resto       db  0
-
+    char        resb   	1
+    msgIng      db  	10,13,"H - Hexa to Decimal. D - Decimal to Hexa: ",'$'
+    msgErrorNum db      10,13,"Error al ingresar numero",'$'
+	errorIngLetra db    10,13,"Error al ingresar caracter",'$'
+	msgMues     db	  	10,13,"Ud ingreso: ",'$'
+    msgIngNum   db		10,13,"Ingrese numero para convercion: ",'$'
+	msgSal      db		10,13,"El numero convertido es: ",'$'
+	num         dw		0
+    dieciseis   dw 	 	16
+    diez        dw  	10
+    cociente    db  	0
+    resto       db  	0
 ;para agregar el fin de string para imprimir por pantalla
 
 segment codigo code
@@ -36,7 +35,21 @@ segment codigo code
     mov     ax,pila     ;ss <-- dir del segmento de pila
     mov     ss,ax
 
+	
+    lea     dx,[msgIng] ;dx <-- offset de 'msgIng' dento del segmento de datos
+    mov     ah,9            ;servicio 9 para int 21h -- Impmrimir msg en pantalla
+    int     21h
+
+    mov     ah,1h           ;servicio 8 para int 21h -- lee caracter de teclado y no lo muestra, lo deja en 'al'
+    int     21h
+	mov     [char],al   ;guardo en char el ascii del caracter ingresado ya que el servicio
+                        ;que se ejecuta a continuación altera 'al' copiando el ascii del signo $
+ 
 ; aca comienza lectura por teclado .
+	mov  dx,msgIngNum        ;dx <-- offset de 'msgIngNum' dento del segmento de datos
+    mov  ah,9                   ; servicio 9 para int 21h -- Impmrimir msg en pantalla
+    int  21h
+
     mov  si,0       ;Reg SI apunta al principio de la cadena
 nextChar:
     ;Leo un caracter del teclado (queda en AL)
@@ -101,6 +114,7 @@ otroChar:
 finOtroChar:
     mov  byte[cadenaAux+5],'$'
 
+
     mov  dx,msgMues        ;dx <-- offset de 'msgMues' dento del segmento de datos
     mov  ah,9                   ; servicio 9 para int 21h -- Impmrimir msg en pantalla
     int  21h
@@ -108,56 +122,73 @@ finOtroChar:
     mov  dx,cadenaAux
     mov  ah,9
     int  21h
+    
+; aca finaliza ingreso por teclado.
 
-
-
-    lea     dx,[msgIng] ;dx <-- offset de 'msgIng' dento del segmento de datos
-    mov     ah,9            ;servicio 9 para int 21h -- Impmrimir msg en pantalla
-    int     21h
-
-    mov     ah,8h           ;servicio 8 para int 21h -- lee caracter de teclado y no lo muestra, lo deja en 'al'
-    int     21h
+	
+	
 ; me fijo que letra es la ingresada ;
-    mov     [char],al   ;guardo en char el ascii del caracter ingresado ya que el servicio
-                        ;que se ejecuta a continuación altera 'al' copiando el ascii del signo $
     cmp     byte[char],'H'
     je      charToHexa
-    cmp     byte[char],'D'
+	cmp     byte[char],'h'
+	je      charToHexa
+	cmp     byte[char],'D'
+    je      charToDeci
+	cmp     byte[char],'d'
     je      charToDeci
     jmp     errorLetra
 
 charToHexa:
-    jmp     cnvNumHexa
-    mov     di,0 ; no se que haria aca.
-
+    mov     di,0
 otroHexa:
     cmp     di,4
     jg      cnvNumHexa
     cmp     byte[cadenaAux+di],'0'
-    jb      error
+    jb      errorNumero
     cmp     byte[cadenaAux+di],'9'
-    jbe     otroHexa
+    jbe     sumDiHexa
     cmp     byte[cadenaAux+di],'A'
-    jb      error
+    jb      errorNumero
     cmp     byte[cadenaAux+di],'F'
-    jbe     otroHexa
+    jbe     sumDiHexa
+	cmp     byte[cadenaAux+di],'a'
+    jb      errorNumero
+    cmp     byte[cadenaAux+di],'f'
+    jbe     minToMayus
+errorNumero:
+    mov     dx,msgErrorNum
+	mov     ah,9
+	int     21h 
+
+	mov dx,msgMues      ;dx <- offset de 'msgMues' dento del segmento de datos
+    mov ah,9            ;servicio 9 para int 21h -- Impmrimir msg en pantalla
+    int 21h
+
+    mov dx,cadenaAux       
+    mov ah,9            
+    int 21h
+
+	
+	jmp     finPrograma
+
 sumDiHexa:
     add     di,1
     jmp     otroHexa
 
-error:
-    jmp     finPrograma
+minToMayus:
+	sub		byte[cadenaAux+di],32
+	jmp		sumDiHexa
+	
 
 charToDeci:
-    jmp     cnvNumDec
     mov     di,0
 otroDeci:
-    cmp     di,9
+    cmp     di,4
     jg      cnvNumDec
     cmp     byte[cadenaAux+di],'0'
-    jb      error
+    jb      errorNumero
     cmp     byte[cadenaAux+di],'9'
-    ja      error
+    ja      errorNumero
     add     di,1
     jmp     otroDeci
 
@@ -271,19 +302,29 @@ esNumHexa:
     jmp     impStr
 
 impStr:
-    mov     [cadena+si],al
-    lea     dx,[cadena]
+	mov     [cadena+si],al
+
+
+    mov     dx,msgSal ;dx <-- offset de 'msgIng' dento del segmento de datos
+    mov     ah,9            ;servicio 9 para int 21h -- Impmrimir msg en pantalla
+    int     21h
+
+    mov     dx,cadena
     mov     ah,9
     int     21h
     jmp     finPrograma
 errorLetra:
-    mov dx,msgMues      ;dx <- offset de 'msgMues' dento del segmento de datos
+    mov dx,errorIngLetra
+	mov ah,9
+	int 21h
+	
+	mov dx,msgMues      ;dx <- offset de 'msgMues' dento del segmento de datos
     mov ah,9            ;servicio 9 para int 21h -- Impmrimir msg en pantalla
     int 21h
 
     mov dl,[char]       ; dl <- caracter ascii a imprimir
     mov ah,2            ; servicio 2 para int 21h -- Imprime un caracter, que esta en 'dl'
     int 21h
-    finPrograma:
+finPrograma:
     mov     ax,4c00h   ;retorno al DOS
     int     21h
